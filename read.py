@@ -260,7 +260,7 @@ def capture_jpeg_from_serial(port='/dev/tty.wchusbserial210', baudrate=250000, t
 
 if __name__ == "__main__":
     # You may need to adjust these parameters to match your setup
-    PORT = '/dev/tty.wchusbserial210'  # Change this to match your serial port
+    PORT = '/dev/tty.wchusbserial110'  # Change this to match your serial port
     BAUDRATE = 250000  # Make sure this matches your Arduino's baud rate
     
     capture_jpeg_from_serial(PORT, BAUDRATE)
