@@ -100,6 +100,8 @@ void loop() {
   }
 
   captureAndSendImage();
+
+  delay(60000);
 }
 
 
