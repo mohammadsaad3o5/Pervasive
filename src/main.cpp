@@ -216,7 +216,7 @@ void loop() {
   }
 
   // buttonState = digitalRead(D3);
-  Serial.println(digitalRead(D3));
+  // Serial.println(digitalRead(D3));
 
   // unsigned long currentMillis = millis();
 
