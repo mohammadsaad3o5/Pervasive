@@ -1,110 +1,3 @@
-// #include <Arduino.h>
-// #include <SPI.h>
-// #include "Arducam_Mega.h"
-// #include <WiFi.h>
-// #include <HTTPClient.h>
-
-// // Arducam configuration
-// #define CS_PIN 14
-// Arducam_Mega myCAM(CS_PIN);
-
-// // WiFi credentials
-// const char* ssid = "iPhone"; 
-// const char* password = "khongcopass";
-
-// // API endpoint
-// const char* serverName = "https://ispy-api-production.up.railway.app/process-image/";
-// // const char* serverName = "http://localhost:8000/process-image/";
-
-// void setup() {
-//   Serial.begin(250000);
-  
-//   // Initialize WiFi
-//   WiFi.begin(ssid, password);
-//   while (WiFi.status() != WL_CONNECTED) {
-//       delay(500);
-//       Serial.print(".");
-//   }
-//   Serial.println("\nConnected to WiFi");
-
-//   // Initialize ArduCAM
-//   if (myCAM.begin() != 0) {
-//       Serial.println("Failed to initialize ArduCAM Mega!");
-//       while (1);
-//   }
-//   Serial.println("ArduCAM Mega initialized successfully!");
-// }
-
-// void sendImageToAPI(uint8_t* imageBuffer, uint32_t imgLen) {
-//   // Send to API
-//   HTTPClient http;
-  
-//   // Begin connection to server
-//   http.begin(serverName);
-  
-//   // Set headers
-//   http.addHeader("Content-Type", "application/octet-stream");
-  
-//   // Send POST request with image data
-//   int httpResponseCode = http.POST(imageBuffer, imgLen);
-  
-//   // Handle response
-//   if (httpResponseCode > 0) {
-//       String response = http.getString();
-//       Serial.printf("HTTP Response code: %d\n", httpResponseCode);
-//       Serial.println("Response: " + response);
-//   } else {
-//       Serial.printf("Error code: %d\n", httpResponseCode);
-//   }
-
-//   // Clean up
-//   http.end();
-// }
-
-// void captureAndSendImage() {
-//   if (myCAM.takePicture(CAM_IMAGE_MODE_SVGA, CAM_IMAGE_PIX_FMT_JPG) != 0) {
-//       Serial.println("Failed to capture image!");
-//       return;
-//   }
-//   Serial.println("Image captured!");
-
-//   // Get image size
-//   uint32_t imgLen = myCAM.getTotalLength();
-//   Serial.printf("Image size: %u bytes\n", imgLen);
-
-//   // Allocate buffer for the complete image
-//   uint8_t* imageBuffer = (uint8_t*)malloc(imgLen);
-//   if (!imageBuffer) {
-//       Serial.println("Failed to allocate memory!");
-//       return;
-//   }
-
-//   // Read the complete image into buffer
-//   size_t index = 0;
-//   while (myCAM.getReceivedLength()) {
-//       imageBuffer[index++] = myCAM.readByte();
-//   }
-
-//   // Send the image buffer to the API
-//   sendImageToAPI(imageBuffer, imgLen);
-
-//   // Clean up
-//   free(imageBuffer);
-// }
-
-// void loop() {
-//   if (WiFi.status() != WL_CONNECTED) {
-//       Serial.println("WiFi Disconnected");
-//       delay(1000);
-//       return;
-//   }
-
-//   captureAndSendImage();
-
-//   delay(60000);
-// }
-
-
 #include <Arduino.h>
 #include <SPI.h>
 #include "Arducam_Mega.h"
@@ -119,12 +12,12 @@
 Arducam_Mega myCAM(CS_PIN);
 
 // WiFi credentials
-const char* ssid = "iPhone"; 
-const char* password = "khongcopass";
+const char* ssid = "GalaxyS23"; 
+const char* password = "saadbhai";
 
 // API endpoints
 const char* detectColourURL = "https://ispy-api-production.up.railway.app/process-image/";
-const char* compareImageURL = "https://ispy-api-production.up.railway.app/compare-image/";
+const char* compareImageURL = "https://ispy-api-production.up.railway.app/compare-image";
 
 // Global variable to hold the color name
 String colorName;
@@ -243,59 +136,71 @@ bool sendImageAndGetColor(const char* url, uint8_t* imageBuffer, uint32_t imgLen
   }
 }
 
-void compareImageWithColor(const char* url, String colorName, uint8_t* imageBuffer, uint32_t imgLen) {
-  if ((WiFi.status() == WL_CONNECTED)) {
-    HTTPClient http;
-
-    // Begin connection to server
-    http.begin(url);
-    http.addHeader("Content-Type", "application/json");
-
-    // Encode image to base64
-    String image_base64 = base64::encode(imageBuffer, imgLen);
-
-    // Create JSON payload
-    const size_t capacity = JSON_OBJECT_SIZE(2) + colorName.length() + image_base64.length();
-    DynamicJsonDocument doc(capacity);
-
-    doc["color"] = colorName;
-    doc["image"] = image_base64;
-
-    String payload;
-    serializeJson(doc, payload);
-
-    // Send POST request
-    int httpResponseCode = http.POST(payload);
-
-    if (httpResponseCode > 0) {
-      String response = http.getString();
-      Serial.print("HTTP Response code: ");
-      Serial.println(httpResponseCode);
-      Serial.print("Response: ");
-      Serial.println(response);
-
-      // Parse JSON response to get comparison result
-      DynamicJsonDocument respDoc(1024);
-      DeserializationError error = deserializeJson(respDoc, response);
-
-      if (error) {
-        Serial.print("deserializeJson() failed: ");
-        Serial.println(error.c_str());
-      } else {
-        String result = respDoc["result"].as<String>();
-        Serial.print("Comparison Result: ");
-        Serial.println(result);
-      }
-    } else {
-      Serial.print("Error on sending POST: ");
-      Serial.println(http.errorToString(httpResponseCode).c_str());
+String urlencode(String str) {
+    String encodedString = "";
+    char c;
+    char code0;
+    char code1;
+    for (int i = 0; i < str.length(); i++) {
+        c = str.charAt(i);
+        if (c == ' ') {
+            encodedString += '%';
+            encodedString += '2';
+            encodedString += '0';
+        } else if (isalnum(c)) {
+            encodedString += c;
+        } else {
+            code1 = (c & 0xF) + '0';
+            if ((c & 0xF) > 9) {
+                code1 = (c & 0xF) - 10 + 'A';
+            }
+            c = (c >> 4) & 0xF;
+            code0 = c + '0';
+            if (c > 9) {
+                code0 = c - 10 + 'A';
+            }
+            encodedString += '%';
+            encodedString += code0;
+            encodedString += code1;
+        }
     }
+    return encodedString;
+}
 
-    // Free resources
-    http.end();
-  } else {
-    Serial.println("WiFi Disconnected");
-  }
+bool compareImageWithColor(const char* url, String colorName, uint8_t* imageBuffer, uint32_t imgLen) {
+    if (WiFi.status() == WL_CONNECTED) {
+        HTTPClient http;
+
+        // Construct the full URL with the color as a path parameter
+        String fullUrl = String(url) + "/" + urlencode(colorName);
+
+        Serial.print("Full URL: ");
+        Serial.println(fullUrl);
+
+        // Begin connection to server
+        http.begin(fullUrl);
+        http.addHeader("Content-Type", "application/octet-stream");
+
+        // Send POST request with image data as body
+        int httpResponseCode = http.POST(imageBuffer, imgLen);
+
+        Serial.printf("HTTP Response code: %d\n", httpResponseCode);
+
+        if (httpResponseCode > 0) {
+            String response = http.getString();
+            Serial.print("Response: ");
+            Serial.println(response);
+        } else {
+            Serial.print("Error on sending POST: ");
+            Serial.println(httpResponseCode);
+        }
+
+        http.end();
+        return httpResponseCode == 200;
+    } else {
+        Serial.println("WiFi Disconnected");
+        return false;
+    }
 }
 
 int buttonState = 0;
@@ -313,7 +218,7 @@ void loop() {
   // buttonState = digitalRead(D3);
   Serial.println(digitalRead(D3));
 
-  unsigned long currentMillis = millis();
+  // unsigned long currentMillis = millis();
 
   if (digitalRead(D3) == HIGH) {
     state += 1;
@@ -343,7 +248,7 @@ void loop() {
       return;
     }
     firstCaptureDone = true;
-    firstCaptureTime = currentMillis;
+    // firstCaptureTime = currentMillis;
   } 
   else if (state % 3 == 2 && firstCaptureDone) {
     // Capture the second image
