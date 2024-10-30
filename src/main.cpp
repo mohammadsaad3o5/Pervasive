@@ -6,10 +6,19 @@
 #include "base64.h"
 #include <ArduinoJson.h>
 #include <algorithm>
+#include "Talkie.h"
+#include "ColourVocab.h"
+#include "phraseVocab.h"
 
 // Arducam configuration
 #define CS_PIN 14
+#define SPEAKER_PIN D2
+#define BUTTON_PIN D3
+
+
 Arducam_Mega myCAM(CS_PIN);
+
+
 
 // WiFi credentials
 const char* ssid = "GalaxyS23"; 
@@ -30,9 +39,104 @@ uint32_t firstImageSize = 0;
 unsigned long previousMillis = 0;
 const unsigned long interval = 10000; // 10 seconds delay between captures
 
+Talkie voice;
+
+void sayColour(String colour) {
+    Serial.println(colour);
+    if(colour.equalsIgnoreCase("red")) {
+        voice.say(red);
+    }
+    else if(colour.equalsIgnoreCase("black")) {
+        voice.say(black);
+    }
+    else if(colour.equalsIgnoreCase("blue")) {
+        voice.say(blue);
+    }
+    else if(colour.equalsIgnoreCase("green")) {
+        voice.say(green);
+    }
+    else if(colour.equalsIgnoreCase("white")) {
+        voice.say(white);
+    }
+    else if(colour.equalsIgnoreCase("yellow")) {
+        voice.say(yellow);
+    }
+    else if(colour.equalsIgnoreCase("gray")) {
+        voice.say(gray);
+    }
+    else if(colour.equalsIgnoreCase("magenta")) {
+        voice.say(magenta);
+    }
+    else if(colour.equalsIgnoreCase("cyan")) {
+        voice.say(cyan);
+    }
+    else if(colour.equalsIgnoreCase("beige")) {
+        voice.say(beige);
+    }
+    else if(colour.equalsIgnoreCase("teal")) {
+        voice.say(teal);
+    }
+    else if(colour.equalsIgnoreCase("oliveGreen")) {
+        voice.say(oliveGreen);
+    }
+    else if(colour.equalsIgnoreCase("navyBlue")) {
+        voice.say(navyBlue);
+    }
+    else if(colour.equalsIgnoreCase("maroon")) {
+        voice.say(maroon);
+    }
+    else if(colour.equalsIgnoreCase("limeGreen")) {
+        voice.say(limeGreen);
+    }
+    else if(colour.equalsIgnoreCase("turquoise")) {
+        voice.say(turquoise);
+    }
+    else if(colour.equalsIgnoreCase("brown")) {
+        voice.say(brown);
+    }
+    else if(colour.equalsIgnoreCase("pink")) {
+        voice.say(pink);
+    }
+    else if(colour.equalsIgnoreCase("purple")) {
+        voice.say(purple);
+    }
+    else if(colour.equalsIgnoreCase("orange")) {
+        voice.say(orange);
+    }
+    else {
+        voice.say(black);
+    }
+}
+
+void colourMatchSuccess(String colour) {
+    Serial.println("Colors match!");
+    voice.say(successMessage);
+    sayColour(colour);
+}
+
+void colourMatchFail(String colour) {
+    Serial.println("Colors do not match!");
+    voice.say(failMessage);
+    sayColour(colour);
+}
+
+void swapDevices() {
+    voice.say(passDevice);
+}
+
+void sayTakePicture() {
+    voice.say(pleaseTakePicture);
+}
+
+void pictureTakenSuccess(String colour) {
+    voice.say(picTakenOf);
+    sayColour(colour);
+}
+
 void setup() {
   Serial.begin(250000);
-  pinMode(D3, INPUT);
+  pinMode(SPEAKER_PIN, INPUT);
+  pinMode(BUTTON_PIN, INPUT);
   
   // Initialize WiFi
   WiFi.begin(ssid, password);
@@ -167,7 +271,7 @@ String urlencode(String str) {
     return encodedString;
 }
 
-bool compareImageWithColor(const char* url, String colorName, uint8_t* imageBuffer, uint32_t imgLen) {
+bool compareImageWithColor(const char* url, String colorName, uint8_t* imageBuffer, uint32_t imgLen, String& resultStr) {
     if (WiFi.status() == WL_CONNECTED) {
         HTTPClient http;
 
@@ -190,13 +294,32 @@ bool compareImageWithColor(const char* url, String colorName, uint8_t* imageBuff
             String response = http.getString();
             Serial.print("Response: ");
             Serial.println(response);
+
+            // Parse JSON response to get result string
+            DynamicJsonDocument doc(1024); // Adjust size as needed
+            DeserializationError error = deserializeJson(doc, response);
+
+            if (error) {
+                Serial.print("deserializeJson() failed: ");
+                Serial.println(error.c_str());
+                http.end();
+                return false;
+            }
+
+            // Extract the "result" string from the JSON response
+            resultStr = doc["result"].as<String>();
+            Serial.print("Result from API: ");
+            Serial.println(resultStr);
+
+            http.end();
+            return true;
+
         } else {
             Serial.print("Error on sending POST: ");
-            Serial.println(httpResponseCode);
+            Serial.println(http.errorToString(httpResponseCode).c_str());
+            http.end();
+            return false;
         }
-
-        http.end();
-        return httpResponseCode == 200;
     } else {
         Serial.println("WiFi Disconnected");
         return false;
@@ -205,6 +328,40 @@ bool compareImageWithColor(const char* url, String colorName, uint8_t* imageBuff
 
 int buttonState = 0;
 int state = 0;
+
+bool pleaseTakePictureAsked = false;
+bool picTakenOfAsked = false;
+bool sayFirstImageColourAsked = false;
+bool passDeviceAsked = false;
+bool statusSaid = false;
+bool colourIndicatorAsked = false;
+
+String extractSecondColor(const String& apiResult) {
+    // Split the apiResult string by commas
+    int firstComma = apiResult.indexOf(',');
+    int secondComma = apiResult.indexOf(',', firstComma + 1);
+
+    if (firstComma == -1 || secondComma == -1) {
+        Serial.println("Error parsing API result.");
+        return "";
+    }
+
+    // Extract the second color (colour Y)
+    String secondColor = apiResult.substring(secondComma + 1);
+    secondColor.trim(); // Remove any leading/trailing whitespace
+
+    // Remove 'colour ' prefix if it exists
+    String prefix = "colour ";
+    if (secondColor.startsWith(prefix)) {
+        secondColor = secondColor.substring(prefix.length());
+    }
+
+    Serial.print("Extracted second color: ");
+    Serial.println(secondColor);
+
+    return secondColor;
+}
+
 void loop() {
   static bool firstCaptureDone = false;
   static unsigned long firstCaptureTime = 0;
@@ -215,12 +372,14 @@ void loop() {
       return;
   }
 
-  // buttonState = digitalRead(D3);
-  // Serial.println(digitalRead(D3));
+  if (!pleaseTakePictureAsked) {
+    voice.say(pleaseTakePicture);
+    pleaseTakePictureAsked = true;
+  }
 
   // unsigned long currentMillis = millis();
 
-  if (digitalRead(D3) == HIGH) {
+  if (digitalRead(BUTTON_PIN) == HIGH) {
     state += 1;
   }
 
@@ -233,6 +392,30 @@ void loop() {
       // Send the first image to detect its colour
       if (sendImageAndGetColor(detectColourURL, firstImageBuffer, firstImageSize, colorName)) {
         Serial.println("Color name received and stored.");
+
+        if (!picTakenOfAsked) {
+          voice.say(picTakenOf);
+          picTakenOfAsked = true;
+        }
+
+        if (!sayFirstImageColourAsked) {
+          sayColour(colorName);
+          sayFirstImageColourAsked = true;
+        }
+
+        if (!passDeviceAsked) {
+          voice.say(passDevice);
+          passDeviceAsked = true;
+        }
+
+        delay(5000); // Delay 5 seconds here
+
+        if (!colourIndicatorAsked) {
+          voice.say(colourIndicator);
+          sayColour(colorName);
+          colourIndicatorAsked = true;
+        }
+
       } else {
         Serial.println("Failed to get color name.");
         // Clean up
@@ -254,11 +437,44 @@ void loop() {
     // Capture the second image
     uint8_t* secondImageBuffer = nullptr;
     uint32_t secondImageSize = 0;
+
+    
+
+
     if (captureImage(&secondImageBuffer, &secondImageSize)) {
       Serial.println("Second image captured.");
 
+
+      String apiResult;
+
       // Send the color name and second image to compare
-      compareImageWithColor(compareImageURL, colorName, secondImageBuffer, secondImageSize);
+      if (compareImageWithColor(compareImageURL, colorName, secondImageBuffer, secondImageSize, apiResult)) {
+        // Successfully got result from API, proceed with logic based on apiResult
+        Serial.print("API Result: ");
+        Serial.println(apiResult);
+
+        String secondColor = extractSecondColor(apiResult);
+
+        // Build logic based on the apiResult string
+        if (apiResult.startsWith("SAME")) {
+          // The colors are exactly the same
+          colourMatchSuccess(secondColor);
+        } else if (apiResult.startsWith("CLOSE")) {
+          // The colors are nearly the same
+          colourMatchSuccess(secondColor);
+        } else if (apiResult.startsWith("DIFFERENT")) {
+          // The colors are different
+          colourMatchFail(secondColor);
+        } else {
+          // Handle unexpected result
+          Serial.println("Unexpected API result.");
+        }
+
+      } else {
+        Serial.println("Failed to compare image with color.");
+        // Handle error
+      }
+
 
       // Clean up
       free(firstImageBuffer);
@@ -271,6 +487,11 @@ void loop() {
       // Reset for next cycle
       firstCaptureDone = false;
       colorName = ""; // Clear the color name
+
+      pleaseTakePictureAsked = false;
+      picTakenOfAsked = false;
+      sayFirstImageColourAsked = false;
+      passDeviceAsked = false;
     } else {
       Serial.println("Second image capture failed.");
       // Decide whether to retry or reset
